@@ -6,17 +6,32 @@ import android.os.IBinder;
 import android.view.Gravity;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
-import android.widget.TextView;
-public class OverlayService extends Service {
+import androidx.camera.core.Preview;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.camera.view.PreviewView;
+import androidx.core.content.ContextCompat;
+import androidx.lifecycle.LifecycleService;
+public class OverlayService extends LifecycleService {
   public IBinder onBind(Intent i){return null;}
   public int onStartCommand(Intent i,int f,int id){
+    super.onStartCommand(i,f,id);
     WindowManager wm=(WindowManager)getSystemService(WINDOW_SERVICE);
-    LinearLayout v=new LinearLayout(this); v.setOrientation(LinearLayout.HORIZONTAL);
-    v.addView(new TextView(this){{setText("Front");}});
-    v.addView(new TextView(this){{setText("Back");}});
-    WindowManager.LayoutParams p=new WindowManager.LayoutParams(400,200,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT);
+    LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.HORIZONTAL);
+    PreviewView front=new PreviewView(this); PreviewView back=new PreviewView(this);
+    root.addView(front, new LinearLayout.LayoutParams(400,400));
+    root.addView(back, new LinearLayout.LayoutParams(400,400));
+    WindowManager.LayoutParams p=new WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT);
     p.gravity=Gravity.TOP|Gravity.START;
-    wm.addView(v,p);
+    wm.addView(root,p);
+    ProcessCameraProvider.getInstance(this).addListener(()->{
+      try{
+        ProcessCameraProvider cp=ProcessCameraProvider.getInstance(this).get();
+        Preview pf=new Preview.Builder().build(); pf.setSurfaceProvider(front.getSurfaceProvider());
+        Preview pb=new Preview.Builder().build(); pb.setSurfaceProvider(back.getSurfaceProvider());
+        cp.bindToLifecycle(this, androidx.camera.core.CameraSelector.DEFAULT_FRONT_CAMERA, pf);
+        cp.bindToLifecycle(this, androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA, pb);
+      }catch(Exception e){}
+    }, ContextCompat.getMainExecutor(this));
     return START_STICKY;
   }
 }
